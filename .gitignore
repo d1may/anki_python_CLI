@@ -1,0 +1,18 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.venv/
+venv/
+env/
+
+# Databases (если используешь локальные sqlite)
+*.sqlite3
+*.db
+
+# IDEs
+.vscode/
+.idea/
