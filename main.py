@@ -1,10 +1,9 @@
-import readline, csv, os
+import readline, csv, os, sqlite3
 from dataclasses import dataclass
 from thefuzz import fuzz
 
 import deepl
 from dotenv import load_dotenv
-import os
 
 from colorama import Fore, Style, init
 from random import choice, randint
@@ -14,9 +13,6 @@ from anki.db import add_card, edit_card, get_card_by_id, get_cards, remove_card,
 
 init(autoreset=True)
 load_dotenv() 
-
-auth_key = os.getenv("DEEPL_API_KEY")
-deepl_client = deepl.DeepLClient(auth_key)
 
 
 commands = ["help", "add", "all", "show", "edit", "remove", "quit", "play", "import", "export", "csv", "important", "find"]
@@ -111,15 +107,6 @@ def add_new_card() -> None:
     message = add_card(Card(word=word, description=description, example=example, isImportant=isImportant))
     print(color(message, Palette.SUCCESS))
 
-
-def show_all_cards() -> None:
-    cards = get_cards()
-    if not cards:
-        print(color("No cards yet", Palette.MUTED))
-        return
-    return cards
-
-
 def read_card_id() -> int | None:
     raw_card_id = ask("Enter card id:").strip()
     if raw_card_id.isdigit():
@@ -185,37 +172,44 @@ def edit_card_by_id(card_id: int | None) -> None:
     message = edit_card(card_id, Card(word=word, description=description, example=example, isImportant=isImportant))
     print(color(message, Palette.SUCCESS))
 
-
 def show_help() -> None:
     print(color("Available commands:", Palette.MUTED))
     for command in commands:
         print(f"  {Palette.SUCCESS}{command}{Palette.RESET}")
 
-def fuzzy_chech(user_word: str, corect_word: str) -> int:
-    ratio = fuzz.ratio(user_word, corect_word)
+def fuzzy_check(user_word: str, correct_word: str) -> int:
+    ratio = fuzz.ratio(user_word, correct_word)
     return ratio
 
 
 def play() -> None:
-    cards = show_all_cards()
+    cards = get_cards()
+    if not cards:
+        return
     score = 0
     playing = True
-    print(f"{Palette.ERROR}SELECT a game mode:{Palette.LABEL}\n1. word -> translate -> example.\n2. example -> translate -> word.\n3. Only important")
-    user_mode = input(f"{Palette.VALUE}Enter a number(1-3): ").strip()
-    if user_mode not in ["1", "2", "3"]:
-        print(f'{Palette.ERROR}Invalid "{user_mode}" input; game start; DEFAULT mode is 1')
-        user_mode = "1"
-    if user_mode == "3":
-        cards = get_only_important_cards()
-        user_mode = "1"
-    print(f"{Palette.LABEL}Available commands: !stop, !swap, '+'")
+    print(f"{Palette.ERROR}SELECT a game mode:{Palette.LABEL}\n1. word -> translate -> example.\n2. example -> translate -> word.")
+    game_mode = input(f"{Palette.VALUE}Enter a number(1-2): ").strip()
+    if game_mode not in ["1", "2"]:
+        print(f'{Palette.ERROR}Invalid "{game_mode}" input; game start; DEFAULT GAME mode is 1')
+        game_mode = "1"
+    print(f"{Palette.ERROR}SELECT a card mode:{Palette.LABEL}\n1. all words.\n2. only important words.")
+    card_mode = input(f"{Palette.VALUE}Enter a number(1-2): ").strip()
+    if card_mode not in ["1", "2"]:
+        print(f'{Palette.ERROR}Invalid "{card_mode}" input; game start; DEFAULT CARD mode is 1')
+        card_mode = "1"
+
+    if card_mode == "2":
+        cards = get_important_cards()
+    
+    print(f"{Palette.LABEL}Available commands: !stop, !swap, !deepl, '+'")
     while cards and playing:
         random_ = randint(0, len(cards) - 1)
-        card = cards.pop(random_)  # 👈 правильно удаляем
+        card = cards.pop(random_) 
         desc = card["description"].lower()
         correct_answer = [word.strip() for word in desc.split(",")]
         
-        if user_mode == "1":
+        if game_mode == "1":
             print(color(card["word"], choice(Palette.PLAY_TEXT)))
         else:
             print(color(card["example"], choice(Palette.PLAY_TEXT)))
@@ -224,13 +218,18 @@ def play() -> None:
             user_answer = ask("Answer:").strip().lower()
 
             if user_answer == "!swap":
-                if user_mode == "1":
+                if game_mode == "1":
                     print(card["example"])
                 else:
                     print(card["word"])
             elif user_answer == "!deepl":
-                result = deepl_client.translate_text(f"{card["example"]}", target_lang="RU")
-                print(result.text)
+                try:
+                    auth_key = os.getenv("DEEPL_API_KEY")
+                    deepl_client = deepl.DeepLClient(auth_key)
+                    result = deepl_client.translate_text(f"{card['example']}", target_lang="RU")
+                    print(result.text)
+                except Exception as e:
+                    print(f"Error: {e}")
 
             elif user_answer == "!stop":
                 print(f"{Palette.ERROR}Game over")
@@ -244,13 +243,13 @@ def play() -> None:
                 else:
                     fuzzy_max = 0
                     for word in correct_answer:
-                        fuzzy_ = fuzzy_chech(user_answer, word)
+                        fuzzy_ = fuzzy_check(user_answer, word)
                         fuzzy_max = max(fuzzy_max, fuzzy_)
                     if fuzzy_max > 90:
                         print(f"{Palette.LABEL}Your answer seems like correct! But with little mistake. +1\n")
                         score += 1
                     else:
-                        print(f'{Palette.ERROR}Incorrect. Correct answer is "{card["description"]}" cardID:{card["id"]}\n')
+                        print(f'{Palette.ERROR}Incorrect. Correct answer is "{card['description']}" cardID:{card['id']}\n')
                 break
 
     print(color(f"Score: {score}", Palette.LABEL))
@@ -258,6 +257,9 @@ def play() -> None:
 def get_unique_filename(base_name, used_files):
     n = 1
     filename = base_name
+
+    if used_files is None:
+        return filename
 
     while f"{filename}.csv" in used_files:
         filename = f"{base_name}({n})"
@@ -269,8 +271,11 @@ def export_csv():
     base_path = os.path.expanduser("~/.anki")
     os.makedirs(base_path, exist_ok=True)
 
-    cards = show_all_cards()
-    used_files = found_csv()
+    cards = get_cards()
+    if not cards:
+        print("You don't have the words yet")
+        return
+    used_files = list_csv_files()
 
     filename = input("Input file name: ").strip() or "deck"
 
@@ -298,16 +303,26 @@ def import_csv():
             reader = csv.reader(csvfile, delimiter=';')
 
             user_import = input("Confirm the import(y/n): ").strip().lower()
-            print(user_import)
             if user_import == "y" or user_import == "":
-                print(f"{Palette.SUCCESS}Card import completed successfully")
                 for row in reader:
-                    add_card(Card(word=row[0], description=row[1], example=row[2]))
+                    if len(row) >= 3:
+                        try:
+                            add_card(Card(word=row[0], description=row[1], example=row[2]))
+                            print(f"{Palette.SUCCESS}The {row[0]} import completed successfully")
+                        except sqlite3.IntegrityError as e:
+                            if "UNIQUE constraint failed: words.word" in str(e):
+                                print(f"{Palette.ERROR}Error: The {row[0]} already exists.")
+                            else:
+                                print(f"{Palette.ERROR}Error: {e}")
+                        except Exception as e:
+                            print(f"{Palette.ERROR}Error: {e}")
+                    else:
+                        print(f"{Palette.ERROR}It seems like {filename} was empty")
 
     except Exception as e:
         print(f"Error: {e}")
 
-def found_csv() -> dict:
+def list_csv_files() -> list[str] | None:
     folder = os.path.expanduser("~/.anki")
 
     try:
@@ -317,16 +332,12 @@ def found_csv() -> dict:
         return csv_files
 
     except FileNotFoundError:
-        print("Папка не найдена.")
+        print("The folder was not found.")
     except Exception as e:
-        print(f"Ошибка: {e}")
-
-def get_only_important_cards():
-    cards = get_important_cards()
-    return cards
+        print(f"Error: {e}")
 
 def find_cards() -> None:
-    cards = show_all_cards()
+    cards = get_cards()
     if not cards:
         print(color("No cards yet", Palette.MUTED))
         return
@@ -365,7 +376,7 @@ def main() -> None:
         elif user_input == "add":
             add_new_card()
         elif user_input == "all":
-            cards = show_all_cards()
+            cards = get_cards()
             if cards:
                 print()
                 for card in cards:
@@ -384,14 +395,14 @@ def main() -> None:
         elif user_input == "export":
             export_csv()
         elif user_input == "important":
-            cards = get_only_important_cards()
+            cards = get_important_cards()
             if cards:
                 print()
                 for card in cards:
                     print(format_card(card))
                 print()
         elif user_input == "csv":
-            files = found_csv()
+            files = list_csv_files()
             if files:
                 for file in files:
                     print(file)

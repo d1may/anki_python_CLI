@@ -20,7 +20,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS words (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                word TEXT NOT NULL,
+                word TEXT NOT NULL UNIQUE,
                 description TEXT,
                 example TEXT DEFAULT '-',
                 isImportant INTEGER NOT NULL DEFAULT 0 CHECK (isImportant IN (0, 1)),
