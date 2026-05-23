@@ -1,10 +1,10 @@
-from deepl_tr import deepl_translate
 from random import choice, randint
 
 import deepl
 from thefuzz import fuzz
 
 from anki.db import get_cards, get_important_cards
+from anki.deepl_tr import deepl_translate
 from anki.ui import Palette, ask, color
 
 
