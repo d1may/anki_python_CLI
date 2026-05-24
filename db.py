@@ -101,4 +101,3 @@ def get_card_by_id(id: int) -> dict | None:
     return dict(row) if row is not None else None
 
 
-init_db()

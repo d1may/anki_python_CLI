@@ -1,6 +1,5 @@
 from random import choice, randint
 
-import deepl
 from thefuzz import fuzz
 
 from anki.db import get_cards, get_important_cards
@@ -26,10 +25,10 @@ def play() -> None:
         print(f'{Palette.ERROR}Invalid "{game_mode}" input; game start; DEFAULT GAME mode is 1')
         game_mode = "1"
 
-    print(f"{Palette.ERROR}SELECT a order mode:{Palette.LABEL}\n1. Random\n2. Newest -> Oldest.\n3. Oldest -> Newest.")
+    print(f"{Palette.ERROR}SELECT order mode:{Palette.LABEL}\n1. Random\n2. Newest -> Oldest.\n3. Oldest -> Newest.")
     order_mode = input(f"{Palette.VALUE}Enter a number(1-3): ").strip()
     if order_mode not in ["1", "2", "3"]:
-        print(f'{Palette.ERROR}Invalid "{order_mode}" input; game start; DEFAULT GAME mode is 1')
+        print(f'{Palette.ERROR}Invalid "{order_mode}" input; game start; DEFAULT order mode is 1')
         order_mode = "1"
 
     print(f"{Palette.ERROR}SELECT a card mode:{Palette.LABEL}\n1. all words.\n2. only important words.")
@@ -39,6 +38,9 @@ def play() -> None:
         card_mode = "1"
     elif card_mode == "2":
         cards = get_important_cards()
+        if not cards:
+            print(color("No important cards found", Palette.MUTED))
+            return
 
     print(f"{Palette.LABEL}Available commands: !stop, !swap, !deepl, '+'")
     while cards and playing:
@@ -48,7 +50,7 @@ def play() -> None:
         elif order_mode == "3":
             card_index = -1
         card = cards.pop(card_index)
-        desc = card["description"].lower()
+        desc = (card["description"] or "").lower()
         correct_answer = [word.strip() for word in desc.split(",")]
 
         if game_mode == "1":

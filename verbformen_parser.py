@@ -20,6 +20,7 @@ USER_AGENT = (
 class VerbformenEntry:
     word: str
     article: str | None
+    plural: str | None
     description: str | None
     principal_parts: list[str]
     auxiliary: str | None
@@ -33,7 +34,9 @@ class VerbformenEntry:
 
 def format_verbformen_entry(entry: VerbformenEntry) -> str:
     word = f"{entry.article} {entry.word}" if entry.article else entry.word
-    lines = [f"New daily word: {word}"]
+    if entry.plural:
+        word = f"{word} (pl. {entry.plural})"
+    lines = [f"Word of the day: {word}"]
 
     if entry.level:
         lines.append(f"Level: {entry.level}")
@@ -68,9 +71,12 @@ def parse_verbformen_html(html: str, word: str, url: str | None = None) -> Verbf
     description = _first_meta_content("description", html)
     intro = _first_text(r"<h1[^>]*>.*?</h1>\s*<p[^>]*>(.*?)</p>", html)
 
+    parsed_word = _parse_word(html, intro) or _clean_word(word)
+
     return VerbformenEntry(
-        word=word,
+        word=parsed_word,
         article=_parse_article(intro, html),
+        plural=_parse_plural(intro, html),
         description=description,
         principal_parts=_parse_principal_parts(intro),
         auxiliary=_parse_auxiliary(intro),
@@ -83,6 +89,101 @@ def parse_verbformen_html(html: str, word: str, url: str | None = None) -> Verbf
 def parse_verbformen(word: str, timeout: int = 15) -> VerbformenEntry:
     html, url = fetch_html(word, timeout=timeout)
     return parse_verbformen_html(html, word=word, url=url)
+
+
+def _parse_word(html: str, intro: str | None = None) -> str | None:
+    if intro:
+        patterns = (
+            r'conjugation of (?:the )?(?:verb |noun |adjective )?"?([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß -]*)"?',
+            r'principal parts of "([^"]+)"',
+            r'auxiliary verb of ([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß -]*) is',
+            r'verb "([^"]+)" belongs',
+        )
+        for pattern in patterns:
+            match = re.search(pattern, intro, re.I)
+            if match:
+                word = _clean_word(match.group(1))
+                if word:
+                    return word
+
+    title = _first_text(r"<h1[^>]*>(.*?)</h1>", html)
+    if title:
+        word = _parse_word_from_title(title)
+        if word:
+            return word
+
+    match = re.search(
+        r'<meta\s+property="og:title"\s+content="([^"]*)"',
+        html,
+        re.I,
+    )
+    if match:
+        word = _parse_word_from_title(unescape(match.group(1)))
+        if word:
+            return word
+
+    match = re.search(r'<span[^>]*class="[^"]*\bvGrnd\b[^"]*"[^>]*>(.*?)</span>', html, re.S)
+    if match:
+        word = _clean_word(match.group(1))
+        if word:
+            return word
+
+    return None
+
+
+def _parse_word_from_title(title: str) -> str | None:
+    title = title.split(" - ", 1)[0]
+    patterns = (
+        r'(?:verb|noun|adjective)\s+(.+)$',
+        r'^(?:Conjugation|Declension|Inflection)\s+(?:of\s+)?(?:German\s+)?(?:verb|noun|adjective)?\s*(.+)$',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, title, re.I)
+        if match:
+            word = _clean_word(match.group(1))
+            if word:
+                return word
+
+    return _clean_word(title) or None
+
+
+def _clean_word(value: str) -> str:
+    value = _clean_html(value)
+    value = re.sub(r'^(der|die|das)\s+', '', value, flags=re.I)
+    value = re.sub(r'\s*[⟨<].*?[⟩>]\s*$', '', value)
+    value = re.sub(r'\s+with plural and article$', '', value, flags=re.I)
+    value = re.sub(r'\s+-\s+All forms.*$', '', value, flags=re.I)
+    value = re.sub(r'\s+', ' ', value)
+    return value.strip(' "“”')
+
+
+def _parse_plural(intro: str | None, html: str) -> str | None:
+    if intro:
+        patterns = (
+            r'nominative plural ["“]([^"”]+)["”]',
+            r'plural of ["“][^"”]+["”] is:\s*die\s+([A-Za-zÄÖÜäöüß() -]+)',
+        )
+        for pattern in patterns:
+            match = re.search(pattern, intro, re.I)
+            if match:
+                plural = _clean_word(match.group(1))
+                if plural:
+                    return f"die {plural}" if not plural.lower().startswith("die ") else plural
+
+    text = _clean_html(html)
+    match = re.search(r'\bNom\.\s+die\s+([A-Za-zÄÖÜäöüß() ]+?)(?:\s+Gen\.|\s+Dat\.|\s+Acc\.|$)', text)
+    if match:
+        plural = _normalize_split_word(match.group(1))
+        if plural:
+            return f"die {plural}"
+
+    return None
+
+
+def _normalize_split_word(value: str) -> str:
+    value = _clean_word(value)
+    # verbformen may put spaces between stems/endings because of markup: "Tag e" -> "Tage".
+    return re.sub(r'(?<=[A-Za-zÄÖÜäöüß])\s+(?=[A-Za-zÄÖÜäöüß])', '', value)
 
 
 def _parse_principal_parts(text: str | None) -> list[str]:
@@ -114,7 +215,7 @@ def _parse_level(text: str | None) -> str | None:
 
 def _parse_article(text: str | None, html: str) -> str | None:
     if text:
-        match = re.search(r'The article is "(der|die|das)\b', text, re.I)
+        match = re.search(r'The article is ["“”]?\s*(der|die|das)\b', text, re.I)
         if match:
             return match.group(1).lower()
 
