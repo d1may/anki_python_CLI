@@ -1,29 +1,46 @@
 from collections.abc import Callable
 
-from anki.db import add_card, edit_card, get_card_by_id, get_cards, remove_card
+from anki.db import add_card, check_word, edit_card, get_card_by_id, get_cards, remove_card
 from anki.models import Card
 from anki.ui import Palette, ask, color, format_card
 
 
+def parse_card_mark(answer: str, current_important: int = 0, current_muted: int = 0) -> tuple[int, int]:
+    answer = answer.strip().lower()
+    if not answer:
+        return current_important, current_muted
+
+    if answer in ["+", "i", "important", "y", "1"]:
+        return 1, 0
+    if answer in ["-", "m", "muted"]:
+        return 0, 1
+    if answer in ["0", "n", "normal", "none"]:
+        return 0, 0
+
+    print(color("Unknown mark, using normal", Palette.MUTED))
+    return 0, 0
+
+
 def add_new_card() -> None:
     word = ask("Enter a word:").strip()
-    description = ask("Enter a description:").strip()
-    example = ask("Enter an example:").strip()
-    important_answer = ask("Mark this card as important?(+, y, 1):").strip().lower()
-    isImportant = 0
-
     if not word:
         print(color("Word cannot be empty", Palette.ERROR))
         return
-    elif not description:
+    if check_word(word):
+        print(f"{Palette.ERROR}The word already exist.")
+        return
+    description = ask("Enter a description:").strip()
+    if not description:
         print(color("Description cannot be empty", Palette.ERROR))
         return
-    elif not example:
+    example = ask("Enter an example:").strip()
+    mark_answer = ask("Card mark (+ important, - muted, Enter normal):")
+    isImportant, isMuted = parse_card_mark(mark_answer)
+    
+    if not example:
         example = "-"
-    if important_answer in ["+", "y", "1"]:
-        isImportant = 1
 
-    message = add_card(Card(word=word, description=description, example=example, isImportant=isImportant))
+    message = add_card(Card(word=word, description=description, example=example, isImportant=isImportant, isMuted=isMuted))
     print(color(message, Palette.SUCCESS))
 
 
@@ -79,19 +96,14 @@ def edit_card_by_id(card_id: int | None) -> None:
     word = ask(f'Enter a word:{Palette.MUTED}(or press "Enter")').strip() or card["word"]
     description = ask(f'Enter a description:{Palette.MUTED}(or press "Enter")').strip() or card["description"]
     example = ask(f'Enter an example:{Palette.MUTED}(or press "Enter")').strip() or card["example"]
-    important_answer = ask(f'Mark this card as important?:{Palette.MUTED}(or press "Enter")').strip()
-    isImportant = card["isImportant"]
+    mark_answer = ask(f'Card mark (+ important, - muted, 0 normal):{Palette.MUTED}(or press "Enter")')
+    isImportant, isMuted = parse_card_mark(mark_answer, card["isImportant"], card["isMuted"])
 
     if not word:
         print(color("Word cannot be empty", Palette.ERROR))
         return
 
-    if important_answer in ["+", "y", "1", "Y"]:
-        isImportant = 1
-    elif important_answer:
-        isImportant = 0
-
-    message = edit_card(card_id, Card(word=word, description=description, example=example, isImportant=isImportant))
+    message = edit_card(card_id, Card(word=word, description=description, example=example, isImportant=isImportant, isMuted=isMuted))
     print(color(message, Palette.SUCCESS))
 
 

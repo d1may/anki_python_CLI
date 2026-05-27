@@ -39,7 +39,8 @@ def format_card(card: dict) -> str:
         f"{Palette.MUTED}|{Palette.RESET} {Palette.SUCCESS}{card['word']}{Palette.RESET} "
         f"{Palette.MUTED}|{Palette.RESET} {Palette.VALUE}{card['description']}{Palette.RESET} "
         f"{Palette.MUTED}|{Palette.RESET} {Palette.VALUE}{card['example']}{Palette.RESET}"
-        f"{Palette.MUTED}|{Palette.RESET} {Palette.VALUE}{card['isImportant']}{Palette.RESET}"
+        f"{Palette.MUTED}| important:{Palette.RESET} {Palette.VALUE}{card['isImportant']}{Palette.RESET}"
+        f"{Palette.MUTED}| muted:{Palette.RESET} {Palette.VALUE}{card['isMuted']}{Palette.RESET}"
     )
 
 

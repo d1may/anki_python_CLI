@@ -7,3 +7,4 @@ class Card:
     description: str
     example: str
     isImportant: int = 0
+    isMuted: int = 0

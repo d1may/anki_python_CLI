@@ -78,16 +78,16 @@ def import_csv():
         print(f"Error: {e}")
 
 
-def list_csv_files() -> list[str] | None:
+def list_csv_files() -> list[str]:
     folder = os.path.expanduser("~/.anki")
 
     try:
         files = os.listdir(folder)
-
-        csv_files = [f for f in files if f.endswith(".csv")]
-        return csv_files
+        return sorted(f for f in files if f.endswith(".csv"))
 
     except FileNotFoundError:
         print("The folder was not found.")
+        return []
     except Exception as e:
         print(f"Error: {e}")
+        return []
