@@ -143,42 +143,42 @@ def main() -> None:
         user_command = parts[0].lower()
         user_args = parts[1] if len(parts) > 1 else ""
 
-        if user_command == "quit":
-            break
-        elif user_command == "help":
-            show_help()
-        elif user_command == "clear":
-            clear_screen()
-        elif user_command == "reword":
-            reword_daily()
-        elif user_command == "add":
-            add_new_card()
-        elif user_command == "all":
-            print_cards(get_cards())
-        elif user_command == "show":
-            show_card_by_id(get_card_id_from_args(user_args))
-        elif user_command == "edit":
-            edit_card_by_id(get_card_id_from_args(user_args))
-        elif user_command == "remove":
-            remove_cards_from_input(user_args)
-        elif user_command == "play":
-            play(set_completion_options, commands)
-        elif user_command == "import":
-            import_csv_with_completion()
-        elif user_command == "export":
-            export_csv()
-        elif user_command == "important":
-            print_cards(get_important_cards())
-        elif user_command == "muted":
-            print_cards(get_muted_cards())
-        elif user_command == "csv":
-            files = list_csv_files()
-            if files:
-                for file in files:
-                    print(file)
-            else:
-                print("Files not found.")
-        elif user_command == "find":
-            find_cards(set_completion_options, commands)
-        else:
-            print(color("Unknown command. Type 'help' to see available commands.", Palette.ERROR))
+        match user_command:
+            case "quit":
+                break
+            case "help":
+                show_help()
+            case "clear":
+                clear_screen()
+            case "reword":
+                reword_daily()
+            case "add":
+                add_new_card()
+            case "all":
+                print_cards(get_cards())
+            case "show":
+                show_card_by_id(get_card_id_from_args(user_args))
+            case "edit":
+                edit_card_by_id(get_card_id_from_args(user_args))
+            case "remove":
+                remove_cards_from_input(user_args)
+            case "play":
+                play(set_completion_options, commands)
+            case "import":
+                import_csv_with_completion()
+            case "export":
+                export_csv()
+            case "important":
+                print_cards(get_important_cards())
+            case "muted":
+                print_cards(get_muted_cards())
+            case "csv":
+                if files := list_csv_files():
+                    for file in files:
+                        print(file)
+                else:
+                    print("Files not found.")
+            case "find":
+                find_cards(set_completion_options, commands)
+            case _:
+                print(color("Unknown command. Type 'help' to see available commands.", Palette.ERROR))

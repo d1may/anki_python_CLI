@@ -20,7 +20,7 @@ def fuzzy_check(user_word: str, correct_word: str) -> int:
     return ratio
 
 
-GAME_COMMANDS = ["!stop", "!swap", "!deepl", "!mute", "!important", "+"]
+GAME_COMMANDS = ["!stop", "!swap", "!deepl", "!mute", "!important", "+", "-"]
 
 
 def play(set_completion_options: Callable[[list[str]], None] | None = None, default_completion_options: list[str] | None = None) -> None:
@@ -119,9 +119,22 @@ def play(set_completion_options: Callable[[list[str]], None] | None = None, defa
                     break
 
                 else:
-                    if user_answer in correct_answer or user_answer == desc or user_answer == "+":
+                    if user_answer in correct_answer or user_answer == desc :
                         print(f"{Palette.SUCCESS}Correct\n")
                         score += 1
+                    elif user_answer == "+":
+                        mark_card_as_muted(card["id"])
+                        card["isMuted"] = 1
+                        card["isImportant"] = 0
+                        print(f"{Palette.SUCCESS}Correct\n")
+                        print(color("You set it as muted", Palette.SUCCESS))
+                        score += 1
+                    elif user_answer == "-":
+                        mark_card_as_important(card["id"])
+                        card["isImportant"] = 1
+                        card["isMuted"] = 0
+                        print(color("You set it as important", Palette.SUCCESS))
+                        print(f'{Palette.ERROR}Incorrect. Correct answer is "{card["description"]}" cardID:{card["id"]}\n')
                     else:
                         fuzzy_max = 0
                         for word in correct_answer:
